@@ -10,7 +10,7 @@ variables:
           url=$(echo "$rel" | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
           out="${dl}.tar.gz"
           mkdir -p "$dl"
-          # curl -sSL "$url" -o "$out" 2>/dev/null
+          curl -sSL "$url" -o "$out" 2>/dev/null
           jq -n --arg dl "$dl" --arg ver "$ver" --arg out "$out" '{dl: $dl, ver: $ver, out: $out}'
       - &fetchGithubToolForVersion_extract
         name: extract
