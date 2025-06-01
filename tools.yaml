@@ -1,0 +1,525 @@
+variables:
+  scripts:
+    fetchGithubToolForVersion: &fetchGithubToolForVersion
+      - &fetchGithubToolForVersion_download
+        name: download
+        script: |
+          ver="{{.Arg}}"
+          dl="{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+          rel=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null)
+          url=$(echo "$rel" | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+          out="${dl}.tar.gz"
+          mkdir -p "$dl"
+          curl -sSL "$url" -o "$out" 2>/dev/null
+          jq -n --arg dl "$dl" --arg ver "$ver" --arg out "$out" '{dl: $dl, ver: $ver, out: $out}'
+      - &fetchGithubToolForVersion_extract
+        name: extract
+        script: |
+          tar --strip-components=1 -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+          rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    getAllLocalVersions: &getAllLocalVersions
+      - name: base
+        script: |
+          ls "{{.Config.DownloadsDir}}/{{.Tool.Id}}" 2>/dev/null | grep -v current | sort -r -V
+    getAllGithubRemoteVersions: &getAllGithubRemoteVersions
+      - name: base
+        script: |
+          curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases | jq -r ".[].tag_name"
+    getGithubLatestRemoteVersion: &getGithubLatestRemoteVersion
+      - name: base
+        script: |
+          curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/latest | jq -r .tag_name
+    linkTool: &linkTool
+      - name: base
+        script: |
+          set -e
+          ver="{{.Arg}}"
+          base="{{.Config.DownloadsDir}}/{{.Tool.Id}}/${ver}"
+          curr="{{.Config.DownloadsDir}}/{{.Tool.Id}}/current"
+          dst="{{.Config.SymlinksDir}}"
+
+          if [[ ! -L "$curr" ]]; then
+            ln -s -f "$base" "$curr"
+          fi
+
+          mkdir -p "$dst"
+          while IFS= read -r pair; do
+              rel_src=$(echo "$pair" | cut -d: -f1)
+              rel_dst=$(echo "$pair" | cut -d: -f2)
+              ln -s -f "$curr/$rel_src" "$dst/$rel_dst"
+          done <<< "{{.Tool.ShellFriendlySymlinks}}"
+    unlinkTool: &unlinkTool
+      - name: removeCurrentLink
+        script: |
+          curr="{{.Config.DownloadsDir}}/{{.Tool.Id}}/current"
+          if [[ -L "$curr" ]]; then
+            rm -f "$curr"
+          fi
+
+
+    getLinkInfo: &getLinkInfo
+      - name: base
+        script: |
+          link_file="{{.Config.DownloadsDir}}/{{.Tool.Id}}/current"
+          if [[ -L "$link_file" ]]; then
+            ver=$(readlink "$link_file" | sed 's|.*/||')
+            linked_at=$(stat -c %y "$link_file")
+            jq -n --arg ver "$ver" --arg linked_at "$linked_at" '{version: $ver, linked_at: $linked_at}'
+          else
+            jq -n --arg ver "" --arg linked_at "" '{version: $ver, linked_at: $linked_at}'
+          fi
+
+  bashSources:
+    bashScriptsTar: &bashScriptsTar
+      fetchToolForVersion: *fetchGithubToolForVersion
+      getAllLocalVersions: *getAllLocalVersions
+      getAllRemoteVersions: *getAllGithubRemoteVersions
+      getLatestRemoteVersion: *getGithubLatestRemoteVersion
+      getLinkInfo: *getLinkInfo
+      linkTool: *linkTool
+      unlinkTool: *unlinkTool
+
+    bashScriptsZip: &bashScriptsZip
+      <<: *bashScriptsTar
+      fetchToolForVersion:
+        - *fetchGithubToolForVersion_download
+        - name: extract
+          script: |
+            unzip -qq $(echo '{{.StepOutputs.download}}' | jq -r .out) -d $(echo '{{.StepOutputs.download}}' | jq -r .dl) 2>/dev/null
+            rm $(echo '{{.StepOutputs.download}}' | jq -r .out) 2>/dev/null
+
+# ---
+state_file_path: ./.tools.state.yaml
+downloads_dir: /home/rayyan/programs/tvm_cache
+symlinks_dir: /home/rayyan/programs/bin
+
+tools:
+  - id: jq
+    type: scripts_driven
+    symlinks:
+      - from: jq
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"jq-linux-amd64\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/jq" 2>/dev/null
+    extra:
+      AssetRegex: jq-linux-amd64
+      Repo: jqlang/jq
+
+  - id: ripgrep
+    type: scripts_driven
+    symlinks:
+      - from: rg
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      AssetRegex: ripgrep-[0-9.]+-(x86_64|amd64)-unknown-linux-musl.tar.gz$
+      Repo: BurntSushi/ripgrep
+
+  - id: fzf
+    type: scripts_driven
+    symlinks:
+      - from: fzf
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      AssetRegex: fzf-[0-9.]+-linux_amd64.tar.gz$
+      Repo: junegunn/fzf
+
+  - id: fd
+    type: scripts_driven
+    symlinks:
+      - from: fd
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      AssetRegex: fd-v[0-9.]+-(x86_64|amd64)-unknown-linux-musl.tar.gz$
+      Repo: sharkdp/fd
+
+  - id: ripgrep_all
+    type: scripts_driven
+    symlinks:
+      - from: rga
+      - from: rga-fzf
+      - from: rga-fzf-open
+      - from: rga-preproc
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      AssetRegex: ripgrep_all-v[0-9.]+-(x86_64|amd64)-unknown-linux-musl.tar.gz$
+      Repo: phiresky/ripgrep-all
+
+  - id: neovim
+    type: scripts_driven
+    symlinks:
+      - from: bin/nvim
+        to: nvim
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: neovim/neovim
+      AssetRegex: nvim-linux-x86_64.tar.gz$
+
+  - id: duckdb
+    type: scripts_driven
+    symlinks:
+      - from: duckdb
+    source:
+      scripts: *bashScriptsZip
+    extra:
+      Repo: duckdb/duckdb
+      AssetRegex: duckdb_cli-linux-amd64.zip$
+
+  - id: yazi
+    type: scripts_driven
+    symlinks:
+      - from: yazi-x86_64-unknown-linux-musl/yazi
+      - from: yazi-x86_64-unknown-linux-musl/ya
+    source:
+      scripts: *bashScriptsZip
+    extra:
+      Repo: sxyazi/yazi
+      AssetRegex: yazi-x86_64-unknown-linux-musl.zip$
+
+  - id: gh
+    type: scripts_driven
+    symlinks:
+      - from: bin/gh
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: cli/cli
+      AssetRegex: gh_[0-9.]+_linux_amd64.tar.gz$
+
+  - id: navi
+    type: scripts_driven
+    symlinks:
+      - from: navi
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: denisidoro/navi
+      AssetRegex: navi-v[0-9.]+-x86_64-unknown-linux-musl.tar.gz$
+
+  - id: eza
+    type: scripts_driven
+    symlinks:
+      - from: eza
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: eza-community/eza
+      AssetRegex: eza_x86_64-unknown-linux-musl.tar.gz$
+
+  - id: bat
+    type: scripts_driven
+    symlinks:
+      - from: bat
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: sharkdp/bat
+      AssetRegex: bat-v[0-9.]+-x86_64-unknown-linux-musl.tar.gz$
+
+  - id: devbox
+    type: scripts_driven
+    symlinks:
+      - from: devbox
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: jetify-com/devbox
+      AssetRegex: devbox_[0-9.]+_linux_amd64.tar.gz$
+
+  - id: k3d
+    type: scripts_driven
+    symlinks:
+      - from: k3d
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/k3d" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/k3d"
+    extra:
+      Repo: k3d-io/k3d
+      AssetRegex: k3d-linux-amd64$
+
+
+  - id: age
+    type: scripts_driven
+    symlinks:
+      - from: age
+      - from: age-keygen
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: FiloSottile/age
+      AssetRegex: age-v[0-9.]+-linux-amd64.tar.gz$
+
+  - id: btop
+    type: scripts_driven
+    symlinks:
+      - from: btop/bin/btop
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              mkdir -p $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              tar --strip-components=1 -xjvf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out) 2>/dev/null
+    extra:
+      Repo: aristocratos/btop
+      AssetRegex: btop-x86_64-linux-musl.tbz$
+
+  - id: k6
+    type: scripts_driven
+    symlinks:
+      - from: k6
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: grafana/k6
+      AssetRegex: k6-v[0-9.]+-linux-amd64.tar.gz$
+
+  - id: kubectl
+    type: scripts_driven
+    symlinks:
+      - from: kubectl
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "https://dl.k8s.io/release/{{.Arg}}/bin/linux/amd64/kubectl" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kubectl" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kubectl"
+        getLatestRemoteVersion: &kubectl_getLatestRemoteVersion
+          - name: base
+            script: |
+              curl -L -s https://dl.k8s.io/release/stable.txt
+        getAllRemoteVersions: *kubectl_getLatestRemoteVersion
+
+  - id: helm
+    type: scripts_driven
+    symlinks:
+      - from: helm
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download
+            script: |
+              ver="{{.Arg}}"
+              dl="{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              out="${dl}.tar.gz"
+              mkdir -p "$dl"
+              curl -sSL "https://get.helm.sh/helm-$ver-linux-amd64.tar.gz" -o "$out" 2>/dev/null
+              jq -n --arg dl "$dl" --arg ver "$ver" --arg out "$out" '{dl: $dl, ver: $ver, out: $out}'
+          - *fetchGithubToolForVersion_extract
+    extra:
+      Repo: helm/helm
+
+
+  - id: nvtop
+    type: scripts_driven
+    symlinks:
+      - from: nvtop
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/nvtop" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/nvtop"
+    extra:
+      Repo: Syllo/nvtop
+      AssetRegex: nvtop-[0-9.]+-x86_64.AppImage$
+
+  - id: kompose
+    type: scripts_driven
+    symlinks:
+      - from: kompose
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kompose" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kompose"
+    extra:
+      Repo: kubernetes/kompose
+      AssetRegex: kompose-linux-amd64$
+
+  - id: fx
+    type: scripts_driven
+    symlinks:
+      - from: fx
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/fx" 2>/dev/null
+    extra:
+      Repo: antonmedv/fx
+      AssetRegex: fx_linux_amd64$
+
+  - id: terraform
+    type: scripts_driven
+    symlinks:
+      - from: terraform
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        getAllRemoteVersions:
+          - name: all_stable_versions
+            script: |
+              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq '.[] | .version' | sort -r -V | grep -v '.*[a-z].*'
+        getLatestRemoteVersion:
+          - name: latest_stable_version
+            script: |
+              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq '.[] | .version' | sort -r -V | grep -v '.*[a-z].*' | head -n 1
+        fetchToolForVersion:
+          - name: download_and_extract_zip
+            script: |
+              ver="{{.Arg}}"
+              url="https://releases.hashicorp.com/terraform/${ver}/terraform_${ver}_linux_amd64.zip"
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/terraform.zip" 2>/dev/null
+              unzip -qq "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/terraform.zip" -d "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              rm "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/terraform.zip" 2>/dev/null
+
+  - id: circleci_cli
+    type: scripts_driven
+    symlinks:
+      - from: circleci
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: CircleCI-Public/circleci-cli
+      AssetRegex: circleci-cli_[0-9.]+_linux_amd64.tar.gz$
+
+  # - id: kubectx
+  - id: uv
+    type: scripts_driven
+    symlinks:
+      - from: uv
+      - from: uvx
+    source:
+      scripts: *bashScriptsTar
+    extra:
+      Repo: astral-sh/uv
+      AssetRegex: uv-x86_64-unknown-linux-gnu.tar.gz$
+
+  - id: k9s
+    type: scripts_driven
+    symlinks:
+      - from: k9s
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: derailed/k9s
+      AssetRegex: k9s_Linux_amd64.tar.gz$
+
+    
+  - id: lazygit
+    type: scripts_driven
+    symlinks:
+      - from: lazygit
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: jesseduffield/lazygit
+      AssetRegex: lazygit_[0-9.]+_Linux_x86_64.tar.gz$
+
+  - id: gdu
+    type: scripts_driven
+    symlinks:
+      - from: gdu_linux_amd64
+        to: gdu
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: dundee/gdu
+      AssetRegex: gdu_linux_amd64.tgz$
+
+  - id: duf
+    type: scripts_driven
+    symlinks:
+      - from: duf
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: muesli/duf
+      AssetRegex: duf_[0-9.]+_linux_x86_64.tar.gz$

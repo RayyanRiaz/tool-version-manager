@@ -1,0 +1,9 @@
+{
+    "gopls": {
+        "ui.diagnostic.staticcheck": true
+    },
+    "search.exclude": {
+        ".gopath": true,
+        "pkg/abcs": true,
+    }
+}
