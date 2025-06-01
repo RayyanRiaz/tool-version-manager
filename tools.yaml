@@ -10,7 +10,7 @@ variables:
           url=$(echo "$rel" | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
           out="${dl}.tar.gz"
           mkdir -p "$dl"
-          curl -sSL "$url" -o "$out" 2>/dev/null
+          # curl -sSL "$url" -o "$out" 2>/dev/null
           jq -n --arg dl "$dl" --arg ver "$ver" --arg out "$out" '{dl: $dl, ver: $ver, out: $out}'
       - &fetchGithubToolForVersion_extract
         name: extract
@@ -523,3 +523,21 @@ tools:
     extra:
       Repo: muesli/duf
       AssetRegex: duf_[0-9.]+_linux_x86_64.tar.gz$
+
+  - id: lnav
+    type: scripts_driven
+    symlinks:
+      - from: lnav
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              dl=$(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              unzip -qq $(echo '{{.StepOutputs.download}}' | jq -r .out) -d $dl 2>/dev/null
+              mv $dl/lnav-*/lnav $dl/lnav && rm -rf $dl/lnav-* 2>/dev/null
+    extra:
+      Repo: tstack/lnav
+      AssetRegex: lnav-[0-9.]+-linux-musl-x86_64.zip$

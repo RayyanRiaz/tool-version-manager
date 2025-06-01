@@ -15,6 +15,6 @@ LDFLAGS="-X 'rayyanriaz/tool-version-manager/cmd/tools-manager.Version=$VERSION'
 # Build for current platform
 echo "Building for $(go env GOOS)/$(go env GOARCH)..."
 mkdir -p bin
-go build -ldflags "$LDFLAGS" -o bin/tools-manager .
+go build -ldflags "$LDFLAGS" -o bin/tvm .
 
-echo "Build complete: bin/tools-manager"
+echo "Build complete: bin/tvm"
