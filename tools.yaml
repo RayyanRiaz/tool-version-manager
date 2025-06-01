@@ -541,3 +541,22 @@ tools:
     extra:
       Repo: tstack/lnav
       AssetRegex: lnav-[0-9.]+-linux-musl-x86_64.zip$
+
+  - id: yq
+    type: scripts_driven
+    symlinks:
+      - from: yq
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/yq" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/yq"
+    extra:
+      Repo: mikefarah/yq
+      AssetRegex: yq_linux_amd64$
