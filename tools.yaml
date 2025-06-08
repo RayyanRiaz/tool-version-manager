@@ -560,3 +560,60 @@ tools:
     extra:
       Repo: mikefarah/yq
       AssetRegex: yq_linux_amd64$
+
+  - id: tmux_binary
+    type: scripts_driven
+    symlinks:
+      - from: tmux
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/tmux" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/tmux"
+    extra:
+      Repo: pythops/tmux-linux-binary
+      AssetRegex: tmux-linux-x86_64$
+
+  - id: direnv
+    type: scripts_driven
+    symlinks:
+      - from: direnv
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/direnv" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/direnv"
+    extra:
+      Repo: direnv/direnv
+      AssetRegex: direnv.linux-amd64
+
+  - id: chezmoi
+    type: scripts_driven
+    symlinks:
+      - from: chezmoi
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/chezmoi" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/chezmoi"
+    extra:
+      Repo: twpayne/chezmoi
+      AssetRegex: chezmoi-linux-amd64$
