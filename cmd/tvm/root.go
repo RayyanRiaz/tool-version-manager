@@ -15,13 +15,11 @@ You can install, link, unlink, and switch between different versions of tools li
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file (default: $TVM_CONFIG or tools.yaml)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
-	bootstrap()
-
-	// Set up logging based on verbose flag
-	RootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+	// Set up logging and bootstrap after flags are parsed
+	RootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if verbose {
 			// Set up a logger that outputs to stdout as well as a debug file
 			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -39,5 +37,8 @@ func init() {
 			}
 			slog.SetDefault(logger)
 		}
+
+		// Bootstrap after flags are parsed so configPath is available
+		return bootstrap()
 	}
 }

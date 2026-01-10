@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"rayyanriaz/tool-version-manager/pkg/impl/config"
 	scriptdriventvm "rayyanriaz/tool-version-manager/pkg/impl/scriptdriven_tvm"
@@ -15,7 +16,10 @@ var (
 )
 
 func bootstrap() error {
-	// defaults
+	// defaults - priority: CLI flag > ENV > default
+	if configPath == "" {
+		configPath = os.Getenv("TVM_CONFIG")
+	}
 	if configPath == "" {
 		configPath = "tools.yaml"
 	}

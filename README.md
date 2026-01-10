@@ -18,6 +18,26 @@ I have assumed that a tool-version-manager can be aptly managed by:
 
 For now, I have defined one implementation i.e. script-driven tvm. More can be defined if needed
 
+## Configuration
+
+TVM uses a YAML configuration file to define tools and their management scripts.
+
+### Config File Location
+
+The configuration file path is resolved in the following order of priority:
+
+1. **CLI flag**: `--config` or `-c`
+   ```bash
+   tvm --config /path/to/my-tools.yaml list local rg
+   ```
+
+2. **Environment variable**: `TVM_CONFIG`
+   ```bash
+   export TVM_CONFIG=/path/to/my-tools.yaml
+   tvm list local rg
+   ```
+
+3. **Default**: `tools.yaml` in the current working directory
 
 ## TODOs:
 

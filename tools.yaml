@@ -618,6 +618,39 @@ tools:
       Repo: twpayne/chezmoi
       AssetRegex: chezmoi-linux-amd64$
 
+  - id: codex
+    type: scripts_driven
+    symlinks:
+      - from: codex-x86_64-unknown-linux-musl
+        to: codex
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+
+  - id: opencode
+    type: scripts_driven
+    symlinks:
+      - from: opencode
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: sst/opencode
+      AssetRegex: opencode-linux-x64.tar.gz$
+
+
   - id: task
     type: scripts_driven
     symlinks:
