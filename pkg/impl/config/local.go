@@ -13,6 +13,7 @@ type LocalFileConfig struct {
 	Tools          models.UniqueToolWrappers `json:"tools"`
 	DownloadsDir   string                    `json:"downloads_dir,omitempty"`
 	SymlinksDir    string                    `json:"symlinks_dir,omitempty"`
+	GitHubToken    string                    `json:"github_token,omitempty"`
 }
 
 func NewLocalFileConfig(configPath string) *LocalFileConfig {
@@ -36,6 +37,11 @@ func (c *LocalFileConfig) Load() error {
 	}
 	if c.SymlinksDir == "" {
 		c.SymlinksDir = "./bin"
+	}
+
+	// Environment variable takes precedence over config file
+	if envToken := os.Getenv("GITHUB_TOKEN"); envToken != "" {
+		c.GitHubToken = envToken
 	}
 
 	if err := c.ensureDirectories(); err != nil {

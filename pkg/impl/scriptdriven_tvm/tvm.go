@@ -37,6 +37,7 @@ func (t *ScriptsDrivenTVM) buildTemplateVars(tool models.Tool, argToFirstStep st
 		"Config": map[string]any{
 			"DownloadsDir": t.configService.DownloadsDir,
 			"SymlinksDir":  t.configService.SymlinksDir,
+			"GitHubToken":  t.configService.GitHubToken,
 		},
 		"Tool": tool,
 		"Arg":  argToFirstStep,

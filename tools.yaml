@@ -6,7 +6,8 @@ variables:
         script: |
           ver="{{.Arg}}"
           dl="{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
-          rel=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null)
+          {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+          rel=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null)
           url=$(echo "$rel" | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
           out="${dl}.tar.gz"
           mkdir -p "$dl"
@@ -24,11 +25,13 @@ variables:
     getAllGithubRemoteVersions: &getAllGithubRemoteVersions
       - name: base
         script: |
-          curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases | jq -r ".[].tag_name"
+          {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+          curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases | jq -r ".[].tag_name"
     getGithubLatestRemoteVersion: &getGithubLatestRemoteVersion
       - name: base
         script: |
-          curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/latest | jq -r .tag_name
+          {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+          curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/latest | jq -r .tag_name
     linkTool: &linkTool
       - name: base
         script: |
@@ -105,7 +108,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"jq-linux-amd64\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"jq-linux-amd64\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/jq" 2>/dev/null
     extra:
@@ -262,7 +266,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/k3d" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/k3d"
@@ -362,7 +367,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/nvtop" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/nvtop"
@@ -381,7 +387,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kompose" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/kompose"
@@ -400,7 +407,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/fx" 2>/dev/null
     extra:
@@ -553,7 +561,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/yq" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/yq"
@@ -572,7 +581,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/tmux" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/tmux"
@@ -591,7 +601,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/direnv" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/direnv"
@@ -610,7 +621,8 @@ tools:
           - name: download_binary
             script: |
               ver="{{.Arg}}"
-              url=$(curl -s https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
               mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
               curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/chezmoi" 2>/dev/null
               chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/chezmoi"
