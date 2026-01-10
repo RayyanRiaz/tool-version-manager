@@ -113,6 +113,9 @@ func upgradeTool(toolID string) error {
 		return fmt.Errorf("failed to get latest version for %s: %w", toolID, err)
 	}
 
+	// Update cache with latest version
+	_ = updateCachedLatestVersion(toolID, latestVersion)
+
 	// Get current linked version
 	linkInfo, err := tvm.GetLinkInfo(tool)
 	var currentVersion models.ToolVersion

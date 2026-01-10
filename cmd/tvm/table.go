@@ -33,7 +33,8 @@ var tableCmd = &cobra.Command{
 	Use:   "table",
 	Short: "Show a beautiful tabular view of all tools",
 	Long: `Display all configured tools in a beautiful table format with information about
-linked versions, installation dates, local versions, and optionally latest remote versions.`,
+linked versions, installation dates, local versions, and latest remote versions (from cache).
+Use --remote to fetch fresh latest versions from remote sources and update the cache.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		tools, err := getAllTools()
@@ -76,14 +77,31 @@ linked versions, installation dates, local versions, and optionally latest remot
 				row.LocalCount = 0
 			}
 
-			// In case the user wants remote info
+			// Get latest remote version - from cache or fresh fetch
 			if showRemote {
+				// Fresh fetch from remote and update cache
 				if latestVersion, err := tvm.GetLatestRemoteVersion(tool); err == nil {
 					row.LatestRemote = string(latestVersion)
+					// Update cache with fresh value
+					_ = updateCachedLatestVersion(tool.GetId(), latestVersion)
 
 					// Check if update is available
 					if row.LinkedVersion != NA {
 						if result, err := tvm.CompareVersions(tool, models.ToolVersion(row.LinkedVersion), latestVersion); err == nil {
+							row.UpdateAvailable = result < 0
+						}
+					}
+				} else {
+					row.LatestRemote = NA
+				}
+			} else {
+				// Use cached version if available
+				if cachedVersion, found := getCachedLatestVersion(tool.GetId()); found {
+					row.LatestRemote = string(cachedVersion)
+
+					// Check if update is available
+					if row.LinkedVersion != NA {
+						if result, err := tvm.CompareVersions(tool, models.ToolVersion(row.LinkedVersion), cachedVersion); err == nil {
 							row.UpdateAvailable = result < 0
 						}
 					}
@@ -128,20 +146,26 @@ linked versions, installation dates, local versions, and optionally latest remot
 	},
 }
 
-func displayTable(rows []ToolTableRow) error {
-	// Calculate column widths
-	widths := []int{8, 6, 15, 12, 6} // min widths for: Tool, Type, Linked Version, Linked At, Local Count
-	if showRemote {
-		widths = append(widths, 14, 8) // Latest Remote, Update Available
-	}
-	widths = append(widths, 20) // Local Versions
+// ANSI color codes
+const (
+	colorReset = "\033[0m"
+	colorGreen = "\033[32m"
+)
 
-	// Headers
-	headers := []string{"Tool", "Type", "Linked Version", "Linked At", "Local Count"}
-	if showRemote {
-		headers = append(headers, "Latest Remote", "Update Available")
+func displayTable(rows []ToolTableRow) error {
+	// Build headers and widths based on verbose mode
+	// Normal mode: Tool, Linked Version, Latest Remote, Update, Linked At, Local Count, Local Versions
+	// Verbose mode: Tool, Type, Linked Version, Latest Remote, Update, Linked At, Local Count, Local Versions
+	var headers []string
+	var widths []int
+
+	if verbose {
+		headers = []string{"Tool", "Type", "Linked Version", "Latest Remote", "Update", "Linked At", "Local Count", "Local Versions"}
+		widths = []int{8, 6, 15, 14, 6, 12, 6, 20}
+	} else {
+		headers = []string{"Tool", "Linked Version", "Latest Remote", "Update", "Linked At", "Local Count", "Local Versions"}
+		widths = []int{8, 15, 14, 6, 12, 6, 20}
 	}
-	headers = append(headers, "Local Versions")
 
 	// Update widths based on content
 	for i, header := range headers {
@@ -151,20 +175,9 @@ func displayTable(rows []ToolTableRow) error {
 	}
 
 	for _, row := range rows {
-		data := []string{
-			row.Name,
-			row.Type,
-			row.LinkedVersion,
-			row.LinkedAt,
-			fmt.Sprintf("%d", row.LocalCount),
-		}
-
-		if showRemote {
-			updateStatus := "No"
-			if row.UpdateAvailable {
-				updateStatus = "Yes"
-			}
-			data = append(data, row.LatestRemote, updateStatus)
+		updateStatus := "No"
+		if row.UpdateAvailable {
+			updateStatus = "Yes"
 		}
 
 		// Format local versions
@@ -176,7 +189,30 @@ func displayTable(rows []ToolTableRow) error {
 				localVersionsStr = strings.Join(row.LocalVersions[:3], ", ") + fmt.Sprintf(" (+%d more)", len(row.LocalVersions)-3)
 			}
 		}
-		data = append(data, localVersionsStr)
+
+		var data []string
+		if verbose {
+			data = []string{
+				row.Name,
+				row.Type,
+				row.LinkedVersion,
+				row.LatestRemote,
+				updateStatus,
+				row.LinkedAt,
+				fmt.Sprintf("%d", row.LocalCount),
+				localVersionsStr,
+			}
+		} else {
+			data = []string{
+				row.Name,
+				row.LinkedVersion,
+				row.LatestRemote,
+				updateStatus,
+				row.LinkedAt,
+				fmt.Sprintf("%d", row.LocalCount),
+				localVersionsStr,
+			}
+		}
 
 		// Update widths
 		for i, col := range data {
@@ -187,31 +223,20 @@ func displayTable(rows []ToolTableRow) error {
 	}
 
 	// Print header
-	printRow(headers, widths, true)
+	printTableRow(headers, widths, true, nil)
 
 	// Print separator
 	var sep []string
 	for _, width := range widths {
 		sep = append(sep, strings.Repeat("-", width))
 	}
-	printRow(sep, widths, false)
+	printTableRow(sep, widths, false, nil)
 
 	// Print data rows
 	for _, row := range rows {
-		data := []string{
-			row.Name,
-			row.Type,
-			row.LinkedVersion,
-			row.LinkedAt,
-			fmt.Sprintf("%d", row.LocalCount),
-		}
-
-		if showRemote {
-			updateStatus := "No"
-			if row.UpdateAvailable {
-				updateStatus = "Yes"
-			}
-			data = append(data, row.LatestRemote, updateStatus)
+		updateStatus := "No"
+		if row.UpdateAvailable {
+			updateStatus = "Yes"
 		}
 
 		// Format local versions
@@ -223,32 +248,75 @@ func displayTable(rows []ToolTableRow) error {
 				localVersionsStr = strings.Join(row.LocalVersions[:3], ", ") + fmt.Sprintf(" (+%d more)", len(row.LocalVersions)-3)
 			}
 		}
-		data = append(data, localVersionsStr)
 
-		printRow(data, widths, false)
+		var data []string
+		var updateColIndex int
+		if verbose {
+			data = []string{
+				row.Name,
+				row.Type,
+				row.LinkedVersion,
+				row.LatestRemote,
+				updateStatus,
+				row.LinkedAt,
+				fmt.Sprintf("%d", row.LocalCount),
+				localVersionsStr,
+			}
+			updateColIndex = 4
+		} else {
+			data = []string{
+				row.Name,
+				row.LinkedVersion,
+				row.LatestRemote,
+				updateStatus,
+				row.LinkedAt,
+				fmt.Sprintf("%d", row.LocalCount),
+				localVersionsStr,
+			}
+			updateColIndex = 3
+		}
+
+		// Set color for update column if update is available
+		var colColors map[int]string
+		if row.UpdateAvailable {
+			colColors = map[int]string{updateColIndex: colorGreen}
+		}
+
+		printTableRow(data, widths, false, colColors)
 	}
 
 	return nil
 }
 
-func printRow(cols []string, widths []int, isHeader bool) {
+func printTableRow(cols []string, widths []int, isHeader bool, colColors map[int]string) {
 	for i, col := range cols {
 		if i > 0 {
 			fmt.Print("  ")
 		}
 
 		width := widths[i]
+
+		// Check if this column should be colored
+		color := ""
+		reset := ""
+		if colColors != nil {
+			if c, ok := colColors[i]; ok {
+				color = c
+				reset = colorReset
+			}
+		}
+
 		if isHeader {
 			fmt.Printf("%-*s", width, strings.ToUpper(col))
 		} else {
-			fmt.Printf("%-*s", width, col)
+			fmt.Printf("%s%-*s%s", color, width, col, reset)
 		}
 	}
 	fmt.Println()
 }
 
 func init() {
-	tableCmd.Flags().BoolVarP(&showRemote, "remote", "r", false, "Fetch and show latest remote versions")
+	tableCmd.Flags().BoolVarP(&showRemote, "remote", "r", false, "Fetch fresh latest versions from remote (updates cache)")
 	tableCmd.Flags().StringVarP(&sortBy, "sort", "s", "name", "Sort by: name, type, linked, count")
 	tableCmd.Flags().StringVarP(&outputFormat, "format", "f", "table", "Output format: table, json")
 

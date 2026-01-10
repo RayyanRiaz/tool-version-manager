@@ -23,6 +23,9 @@ var latestCmd = &cobra.Command{
 			return fmt.Errorf("failed to get latest version for %s: %w", toolID, err)
 		}
 
+		// Update cache with latest version
+		_ = updateCachedLatestVersion(toolID, version)
+
 		fmt.Println(version)
 		return nil
 	},

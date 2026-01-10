@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	configPath    string
-	verbose       bool
-	configService config.LocalFileConfig
+	configPath         string
+	verbose            bool
+	configService      *config.LocalFileConfig
+	remoteVersionCache *config.RemoteVersionsCache
 )
 
 func bootstrap() error {
@@ -21,7 +22,7 @@ func bootstrap() error {
 		configPath = os.Getenv("TVM_CONFIG")
 	}
 	if configPath == "" {
-		configPath = "tools.yaml"
+		configPath = "/home/rayyan/programs/tvm_config.yaml"
 	}
 
 	/*
@@ -35,6 +36,13 @@ func bootstrap() error {
 	models.ToolRegistrar.RegisterTVM("scripts_driven", scriptdriventvm.NewScriptsDrivenTVM())
 	if err := cfg.Load(); err != nil {
 		return fmt.Errorf("failed to create config service for script_driven: %w", err)
+	}
+	configService = cfg
+
+	// Initialize remote versions cache
+	remoteVersionCache = config.NewRemoteVersionsCache(cfg.RemoteVersionsCacheFilePath)
+	if err := remoteVersionCache.Load(); err != nil {
+		return fmt.Errorf("failed to load remote versions cache: %w", err)
 	}
 
 	return nil
@@ -83,4 +91,16 @@ func getAllTools() (models.UniqueToolWrappers, error) {
 	}
 
 	return allTools, nil
+}
+
+// getCachedLatestVersion returns the cached latest version for a tool
+func getCachedLatestVersion(toolID string) (models.ToolVersion, bool) {
+	version, _, found := remoteVersionCache.GetCachedVersion(toolID)
+	return version, found
+}
+
+// updateCachedLatestVersion updates the cached latest version for a tool and saves to disk
+func updateCachedLatestVersion(toolID string, version models.ToolVersion) error {
+	remoteVersionCache.SetCachedVersion(toolID, version)
+	return remoteVersionCache.Save()
 }

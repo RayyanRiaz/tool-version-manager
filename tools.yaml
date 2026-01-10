@@ -92,7 +92,7 @@ variables:
             rm $(echo '{{.StepOutputs.download}}' | jq -r .out) 2>/dev/null
 
 # ---
-state_file_path: ./.tools.state.yaml
+remote_versions_cache_file_path: /home/rayyan/programs/tvm_cache/remote_versions_cache.yaml
 downloads_dir: /home/rayyan/programs/tvm_cache
 symlinks_dir: /home/rayyan/programs/bin
 
@@ -644,6 +644,9 @@ tools:
             script: |
               tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
               rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: openai/codex
+      AssetRegex: codex-x86_64-unknown-linux-musl.tar.gz$
 
   - id: opencode
     type: scripts_driven
@@ -659,7 +662,7 @@ tools:
               tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
               rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
     extra:
-      Repo: sst/opencode
+      Repo: anomalyco/opencode
       AssetRegex: opencode-linux-x64.tar.gz$
 
 

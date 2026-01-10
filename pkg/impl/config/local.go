@@ -9,11 +9,12 @@ import (
 )
 
 type LocalFileConfig struct {
-	configFilePath string                    `json:"-"`
-	Tools          models.UniqueToolWrappers `json:"tools"`
-	DownloadsDir   string                    `json:"downloads_dir,omitempty"`
-	SymlinksDir    string                    `json:"symlinks_dir,omitempty"`
-	GitHubToken    string                    `json:"github_token,omitempty"`
+	configFilePath              string                    `json:"-"`
+	Tools                       models.UniqueToolWrappers `json:"tools"`
+	DownloadsDir                string                    `json:"downloads_dir,omitempty"`
+	SymlinksDir                 string                    `json:"symlinks_dir,omitempty"`
+	GitHubToken                 string                    `json:"github_token,omitempty"`
+	RemoteVersionsCacheFilePath string                    `json:"remote_versions_cache_file_path,omitempty"`
 }
 
 func NewLocalFileConfig(configPath string) *LocalFileConfig {
@@ -37,6 +38,9 @@ func (c *LocalFileConfig) Load() error {
 	}
 	if c.SymlinksDir == "" {
 		c.SymlinksDir = "./bin"
+	}
+	if c.RemoteVersionsCacheFilePath == "" {
+		c.RemoteVersionsCacheFilePath = "./.tools.state.yaml"
 	}
 
 	// Environment variable takes precedence over config file
