@@ -425,11 +425,11 @@ tools:
         getAllRemoteVersions:
           - name: all_stable_versions
             script: |
-              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq '.[] | .version' | sort -r -V | grep -v '.*[a-z].*'
+              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq -r '.[] | .version' | sort -r -V | grep -v '.*[a-z].*'
         getLatestRemoteVersion:
           - name: latest_stable_version
             script: |
-              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq '.[] | .version' | sort -r -V | grep -v '.*[a-z].*' | head -n 1
+              curl -s https://api.releases.hashicorp.com/v1/releases/terraform | jq -r '.[] | .version' | sort -r -V | grep -v '.*[a-z].*' | head -n 1
         fetchToolForVersion:
           - name: download_and_extract_zip
             script: |
