@@ -59,7 +59,7 @@ Use --remote to fetch fresh latest versions from remote sources and update the c
 			// Get linked version and date
 			if linkInfo, err := tvm.GetLinkInfo(tool); err == nil && linkInfo != nil && linkInfo.Version != "" {
 				row.LinkedVersion = string(linkInfo.Version)
-				row.LinkedAt = string(linkInfo.LinkedAt)
+				row.LinkedAt = formatLinkedAt(string(linkInfo.LinkedAt))
 			} else {
 				row.LinkedVersion = NA
 				row.LinkedAt = NA
@@ -151,6 +151,17 @@ const (
 	colorReset = "\033[0m"
 	colorGreen = "\033[32m"
 )
+
+// formatLinkedAt truncates the timestamp to show only up to seconds (YYYY-MM-DD HH:MM:SS)
+func formatLinkedAt(linkedAt string) string {
+	if linkedAt == "" || linkedAt == NA {
+		return linkedAt
+	}
+	if len(linkedAt) >= 19 {
+		return linkedAt[:19]
+	}
+	return linkedAt
+}
 
 func displayTable(rows []ToolTableRow) error {
 	// Build headers and widths based on verbose mode
