@@ -41,9 +41,7 @@ variables:
           curr="{{.Config.DownloadsDir}}/{{.Tool.Id}}/current"
           dst="{{.Config.SymlinksDir}}"
 
-          if [[ ! -L "$curr" ]]; then
-            ln -s -f "$base" "$curr"
-          fi
+          ln -sfn "$base" "$curr"
 
           mkdir -p "$dst"
           while IFS= read -r pair; do
