@@ -681,3 +681,20 @@ tools:
       Repo: go-task/task
 
       AssetRegex: task_linux_amd64.tar.gz$
+
+  - id: just
+    type: scripts_driven
+    symlinks:
+      - from: just
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: casey/just
+      AssetRegex: just-[0-9.]+-x86_64-unknown-linux-musl.tar.gz$
