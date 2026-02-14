@@ -698,3 +698,42 @@ tools:
     extra:
       Repo: casey/just
       AssetRegex: just-[0-9.]+-x86_64-unknown-linux-musl.tar.gz$
+
+  - id: kustomize
+    type: scripts_driven
+    symlinks:
+      - from: kustomize
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        getAllRemoteVersions:
+          - name: base
+            script: |
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases | jq -r '.[].tag_name | select(startswith("kustomize/")) | sub("^kustomize/"; "")'
+        getLatestRemoteVersion:
+          - name: base
+            script: |
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases | jq -r '[.[].tag_name | select(startswith("kustomize/"))][0] | sub("^kustomize/"; "")'
+        fetchToolForVersion:
+          - name: download
+            script: |
+              ver="{{.Arg}}"
+              dl="{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              tag="kustomize/$ver"
+              encoded_tag=$(echo "$tag" | sed 's|/|%2F|g')
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              rel=$(curl -s "${auth_header[@]}" "https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/${encoded_tag}" 2>/dev/null)
+              url=$(echo "$rel" | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              out="${dl}.tar.gz"
+              mkdir -p "$dl"
+              curl -sSL "$url" -o "$out" 2>/dev/null
+              jq -n --arg dl "$dl" --arg ver "$ver" --arg out "$out" '{dl: $dl, ver: $ver, out: $out}'
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: kubernetes-sigs/kustomize
+      AssetRegex: kustomize_v[0-9.]+_linux_amd64.tar.gz$
