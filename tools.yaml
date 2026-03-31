@@ -737,12 +737,21 @@ tools:
     extra:
       Repo: kubernetes-sigs/kustomize
       AssetRegex: kustomize_v[0-9.]+_linux_amd64.tar.gz$
+
   - id: bun
     type: scripts_driven
     symlinks:
       - from: bun
     source:
-      scripts: *bashScriptsZip
+      scripts:
+        <<: *bashScriptsZip
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              dl=$(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              unzip -qq $(echo '{{.StepOutputs.download}}' | jq -r .out) -d $dl 2>/dev/null
+              mv $dl/bun-*/bun $dl/bun && rm -rf $dl/bun-* 2>/dev/null
     extra:
       AssetRegex: bun-linux-x64.zip$
       Repo: oven-sh/bun
