@@ -737,3 +737,13 @@ tools:
     extra:
       Repo: kubernetes-sigs/kustomize
       AssetRegex: kustomize_v[0-9.]+_linux_amd64.tar.gz$
+  - id: bun
+    type: scripts_driven
+    symlinks:
+      - from: bun
+    source:
+      scripts: *bashScriptsZip
+    extra:
+      AssetRegex: bun-linux-x64.zip$
+      Repo: oven-sh/bun
+
