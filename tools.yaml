@@ -477,7 +477,7 @@ tools:
       Repo: derailed/k9s
       AssetRegex: k9s_Linux_amd64.tar.gz$
 
-    
+
   - id: lazygit
     type: scripts_driven
     symlinks:
@@ -756,3 +756,23 @@ tools:
       AssetRegex: bun-linux-x64.zip$
       Repo: oven-sh/bun
 
+
+  - id: openwhispr
+    type: scripts_driven
+    symlinks:
+      - from: openwhispr
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - name: download_binary
+            script: |
+              ver="{{.Arg}}"
+              {{if .Config.GitHubToken}}auth_header=(-H "Authorization: token {{.Config.GitHubToken}}"){{else}}auth_header=(){{end}}
+              url=$(curl -s "${auth_header[@]}" https://api.github.com/repos/{{.Tool.Extra.Repo}}/releases/tags/$ver 2>/dev/null | jq -r ".assets[] | select(.name|test(\"{{.Tool.Extra.AssetRegex}}\")) | .browser_download_url")
+              mkdir -p "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver"
+              curl -sSL "$url" -o "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/openwhispr" 2>/dev/null
+              chmod +x "{{.Config.DownloadsDir}}/{{.Tool.Id}}/$ver/openwhispr"
+    extra:
+      Repo: OpenWhispr/openwhispr
+      AssetRegex: OpenWhispr-[0-9.]+-linux-x86_64.AppImage$
