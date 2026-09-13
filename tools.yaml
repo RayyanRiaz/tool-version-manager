@@ -608,6 +608,23 @@ tools:
       Repo: direnv/direnv
       AssetRegex: direnv.linux-amd64
 
+  - id: zoxide
+    type: scripts_driven
+    symlinks:
+      - from: zoxide
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: ajeetdsouza/zoxide
+      AssetRegex: zoxide-[0-9.]+-x86_64-unknown-linux-musl.tar.gz$
+
   - id: chezmoi
     type: scripts_driven
     symlinks:
