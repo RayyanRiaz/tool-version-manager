@@ -774,6 +774,23 @@ tools:
       Repo: oven-sh/bun
 
 
+  - id: resvg
+    type: scripts_driven
+    symlinks:
+      - from: resvg
+    source:
+      scripts:
+        <<: *bashScriptsTar
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              tar -xzf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              rm $(echo '{{.StepOutputs.download}}' | jq -r .out)
+    extra:
+      Repo: linebender/resvg
+      AssetRegex: resvg-linux-x86_64.tar.gz$
+
   - id: openwhispr
     type: scripts_driven
     symlinks:
