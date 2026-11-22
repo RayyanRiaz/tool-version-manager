@@ -22,7 +22,7 @@ func bootstrap() error {
 		configPath = os.Getenv("TVM_CONFIG")
 	}
 	if configPath == "" {
-		configPath = "/home/rayyan/programs/tvm_config.yaml"
+		configPath = "~/.config/tvm/config.yaml"
 	}
 
 	/*
