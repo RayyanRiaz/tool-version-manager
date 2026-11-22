@@ -180,10 +180,29 @@ tools:
     symlinks:
       - from: duckdb
     source:
-      scripts: *bashScriptsZip
+      scripts:
+        <<: *bashScriptsTar
+        getAllLocalVersions:
+          - name: base
+            script: |
+              for dir in "{{.Config.DownloadsDir}}/{{.Tool.Id}}"/*; do
+                if [[ ! -L "$dir" && -x "$dir/duckdb" ]]; then
+                  basename "$dir"
+                fi
+              done | sort -r -V
+        fetchToolForVersion:
+          - *fetchGithubToolForVersion_download
+          - name: extract
+            script: |
+              set -e
+              dl=$(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              out=$(echo '{{.StepOutputs.download}}' | jq -r .out)
+              tar -xzf "$out" -C "$dl"
+              test -x "$dl/duckdb"
+              rm "$out"
     extra:
       Repo: duckdb/duckdb
-      AssetRegex: duckdb_cli-linux-amd64.zip$
+      AssetRegex: duckdb-cli-linux-amd64.tar.gz$
 
   - id: yazi
     type: scripts_driven
@@ -292,16 +311,28 @@ tools:
     source:
       scripts:
         <<: *bashScriptsTar
+        getAllLocalVersions:
+          - name: base
+            script: |
+              for dir in "{{.Config.DownloadsDir}}/{{.Tool.Id}}"/*; do
+                if [[ ! -L "$dir" && -x "$dir/btop/bin/btop" ]]; then
+                  basename "$dir"
+                fi
+              done | sort -r -V
         fetchToolForVersion:
           - *fetchGithubToolForVersion_download
           - name: extract
             script: |
-              mkdir -p $(echo '{{.StepOutputs.download}}' | jq -r .dl)
-              tar --strip-components=1 -xjvf $(echo '{{.StepOutputs.download}}' | jq -r .out) -C $(echo '{{.StepOutputs.download}}' | jq -r .dl)
-              rm $(echo '{{.StepOutputs.download}}' | jq -r .out) 2>/dev/null
+              set -e
+              dl=$(echo '{{.StepOutputs.download}}' | jq -r .dl)
+              out=$(echo '{{.StepOutputs.download}}' | jq -r .out)
+              mkdir -p "$dl"
+              tar -xf "$out" -C "$dl"
+              test -x "$dl/btop/bin/btop"
+              rm "$out"
     extra:
       Repo: aristocratos/btop
-      AssetRegex: btop-x86_64-linux-musl.tbz$
+      AssetRegex: ^btop-x86_64-(unknown-linux-musl[.]tar[.]gz|linux-musl[.]tbz)$
 
   - id: k6
     type: scripts_driven

@@ -1,0 +1,77 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to create/update releases
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build static binary
+        env:
+          CGO_ENABLED: "0" # fully static: runs on any glibc/musl/NixOS
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" -o "dist/tvm-linux-${GOARCH}" .
+          (cd dist && sha256sum "tvm-linux-${GOARCH}" > "tvm-linux-${GOARCH}.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tvm-linux-${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    # main -> rolling "latest-main" prerelease; v* tag -> versioned release
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish rolling release (main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete latest-main --cleanup-tag --yes || true
+          gh release create latest-main dist/* \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "latest main (${GITHUB_SHA::7})" \
+            --notes "Automated build of ${{ github.sha }}."
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes
