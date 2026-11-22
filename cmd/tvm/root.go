@@ -15,7 +15,7 @@ You can install, link, unlink, and switch between different versions of tools li
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file (default: $TVM_CONFIG or tools.yaml)")
+	RootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file (default: $TVM_CONFIG or ~/.config/tvm/config.yaml)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	// Set up logging and bootstrap after flags are parsed

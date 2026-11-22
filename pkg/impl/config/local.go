@@ -29,6 +29,12 @@ func (c *LocalFileConfig) GetTools() models.UniqueToolWrappers {
 }
 
 func (c *LocalFileConfig) Load() error {
+	configFilePath, err := utils.ExpandHome(c.configFilePath)
+	if err != nil {
+		return err
+	}
+	c.configFilePath = configFilePath
+
 	if err := utils.LoadFile(c.configFilePath, c); err != nil {
 		return fmt.Errorf("failed to load config file %s: %w", c.configFilePath, err)
 	}
@@ -41,6 +47,14 @@ func (c *LocalFileConfig) Load() error {
 	}
 	if c.RemoteVersionsCacheFilePath == "" {
 		c.RemoteVersionsCacheFilePath = "./.tools.state.yaml"
+	}
+
+	for _, p := range []*string{&c.DownloadsDir, &c.SymlinksDir, &c.RemoteVersionsCacheFilePath} {
+		expanded, err := utils.ExpandHome(*p)
+		if err != nil {
+			return err
+		}
+		*p = expanded
 	}
 
 	// Environment variable takes precedence over config file

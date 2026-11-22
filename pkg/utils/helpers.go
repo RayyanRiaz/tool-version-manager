@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/goccy/go-yaml"
@@ -79,4 +81,17 @@ func SaveFile[T any](filePath string, data *T) error {
 }
 func LoadFile[T any](filePath string, out *T) error {
 	return LoadYAMLFile(filePath, out)
+}
+
+// ExpandHome expands a leading "~" or "~/" to the current user's home directory.
+// Go (unlike a shell) never does this, so paths from defaults, env vars or YAML need it.
+func ExpandHome(path string) (string, error) {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve home directory for %q: %w", path, err)
+	}
+	return filepath.Join(home, strings.TrimPrefix(path, "~")), nil
 }
