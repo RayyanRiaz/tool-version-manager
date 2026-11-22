@@ -3,16 +3,16 @@ name: build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write # needed to create/update releases
+  contents: write # needed to create releases/tags
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # never cancel a main run midway through releasing; PR runs can be superseded
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -46,8 +46,8 @@ jobs:
           path: dist/*
 
   release:
-    # main -> rolling "latest-main" prerelease; v* tag -> versioned release
-    if: github.event_name == 'push'
+    # Every push to main -> dated release: v2026.11.20, then v2026.11.20.1, v2026.11.20.2, ...
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -56,22 +56,65 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Publish rolling release (main)
-        if: github.ref == 'refs/heads/main'
+      - name: Compute release tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release delete latest-main --cleanup-tag --yes || true
-          gh release create latest-main dist/* \
-            --target "${{ github.sha }}" \
-            --prerelease \
-            --title "latest main (${GITHUB_SHA::7})" \
-            --notes "Automated build of ${{ github.sha }}."
+          set -euo pipefail
+          base="v$(date -u +%Y.%m.%d)"
 
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+          # Existing tags on the remote for today (no checkout needed).
+          existing=$(gh api --paginate "repos/${GH_REPO}/git/matching-refs/tags/${base}" \
+            --jq '.[].ref | sub("^refs/tags/"; "")')
+
+          # Skip if this exact commit was already released (e.g. workflow re-run).
+          for t in $existing; do
+            sha=$(gh api "repos/${GH_REPO}/commits/${t}" --jq .sha)
+            if [[ "$sha" == "$GITHUB_SHA" ]]; then
+              echo "Commit already released as $t, skipping."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          # First release of the day: vYYYY.MM.DD; then .1, .2, ...
+          # (dot suffix, not '-N': a hyphen would sort as a pre-release, i.e. older than the base)
+          tag="$base"
+          n=0
+          while grep -qxF "$tag" <<< "$existing"; do
+            n=$((n + 1))
+            tag="${base}.${n}"
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $tag"
+
+      - name: Publish release
+        if: steps.tag.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes \
+            --latest
+
+      - name: Prune old releases (keep newest 50)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: 50
+        run: |
+          set -euo pipefail
+          # Only touch dated releases created by this workflow (vYYYY.MM.DD[.N]).
+          old=$(gh release list --limit 1000 --json tagName,createdAt \
+            --jq "[.[] | select(.tagName | test(\"^v[0-9]{4}\\\\.[0-9]{2}\\\\.[0-9]{2}(\\\\.[0-9]+)?$\"))]
+                  | sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].tagName")
+          for t in $old; do
+            echo "Deleting old release $t"
+            gh release delete "$t" --cleanup-tag --yes
+          done
